@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask League App</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center">
+                <h1 class="my-5">Flask League App</h1>
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Start Automation</h5>
+                        <p class="card-text">Clique no botão abaixo para iniciar.</p>
+                        <button id="startButton" class="btn btn-primary btn-lg">Start</button>
+                        {% if summoner %}
+                            <h2 class="mt-4">Bem-vindo {{ summoner.game_name }}</h2>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS (opcional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.getElementById("startButton").addEventListener("click", function() {
+            fetch("/start", { method: "POST" })
+                .then(response => {
+                    if (response.redirected) {
+                        // Redireciona se a resposta for um redirecionamento
+                        window.location.href = response.url;
+                    } else {
+                        console.log("Request sent, but no redirection.");
+                    }
+                })
+                .catch(error => console.error("Error:", error));
+        });
+    </script>
+</body>
+</html>

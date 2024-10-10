@@ -1,0 +1,8 @@
+/.env
+/all_champions.json
+/login_data.json
+/lol_champions.json
+/parsed_champions.json
+/persistent_data.json
+/static
+/__pycache__

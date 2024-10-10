@@ -1,0 +1,224 @@
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+import requests
+
+# Variáveis globais
+player_cell_id = None
+player_session = None
+forbidden_champions_list = []
+
+def get_session_data(url, basic_token, summoner_id):
+    """
+    Faz uma chamada para o endpoint de sessão e busca o cellId do jogador baseado no summonerId,
+    salvando também os dados da sessão inteira.
+
+    Args:
+        url (str): A URL base do LCU.
+        basic_token (str): O token básico de autenticação.
+        summoner_id (int): O summonerId do jogador que queremos encontrar.
+
+    Returns:
+        tuple: (bool, dict) Retorna um booleano indicando se o cellId foi encontrado e a sessão completa.
+    """
+    global player_cell_id, player_session
+    
+    try:
+        response = requests.get(
+            f"{url}/lol-champ-select/v1/session",
+            headers={"Authorization": f"Basic {basic_token}"},
+            verify=False
+        )
+        
+        if response.status_code == 200:
+            session_data = response.json()
+            player_session = session_data  # Salva a sessão completa
+            player_cell_id = session_data.get('localPlayerCellId')
+            
+            # Procura o summonerId no myTeam
+            #for player in session_data.get('myTeam', []):
+            #    if player.get('summonerId') == summoner_id:
+            #        player_cell_id = player.get('cellId')
+            #        print(f"cellId encontrado: {player_cell_id}")
+            if player_cell_id:
+                return True, session_data
+
+            print(f"summonerId {summoner_id} não encontrado em myTeam.")
+            return False, session_data
+        else:
+            print(f"Erro ao buscar a sessão: {response.status_code}")
+            return False, None
+
+    except Exception as e:
+        print(f"Erro ao buscar a sessão de jogo: {e}")
+        return False, None
+
+
+def get_forbidden_champions(summoner_id):
+    """
+    Identifica os campeões que os aliados estão usando ou pretendem usar,
+    salvando os IDs em uma lista de campeões proibidos, ignorando o summoner em questão.
+
+    Args:
+        summoner_id (int): O summonerId do jogador que queremos ignorar.
+    """
+    global forbidden_champions_list, player_session
+
+    if player_session is None:
+        print("Dados da sessão não disponíveis.")
+        return
+    
+    forbidden_champions_list.clear()  # Limpa a lista antes de preenchê-la
+
+    for player in player_session.get('myTeam', []):
+        if player.get('summonerId') != summoner_id:  # Ignora o summoner em questão
+            champion_id = player.get('championId')
+            champion_pick_intent = player.get('championPickIntent')
+
+            if champion_id and champion_id != 0:
+                forbidden_champions_list.append(champion_id)
+            if champion_pick_intent and champion_pick_intent != 0:
+                forbidden_champions_list.append(champion_pick_intent)
+
+    # Remove duplicatas, se houver
+    forbidden_champions_list = list(set(forbidden_champions_list))
+    print("Lista de campeões proibidos:", forbidden_champions_list)
+
+
+def check_current_actions():
+    """
+    Verifica se alguma ação em progresso pertence ao meu summoner.
+
+    Returns:
+        tuple: (bool, int, str) 
+                - bool: Indica se a ação do summoner está em progresso.
+                - int: ID da ação em progresso.
+                - str: Tipo da ação.
+    """
+    global player_session
+
+    if player_session is None or 'actions' not in player_session:
+        print("Dados da sessão ou ações não disponíveis.")
+        return False, None, None
+    
+    for action_list in player_session['actions']:  # Percorre cada lista de ações
+        for action in action_list:  # Percorre cada ação na lista
+            actor_cell_id = action.get('actorCellId')
+            is_in_progress = action.get('isInProgress')
+            action_id = action.get('id')
+            action_type = action.get('type')
+
+            if actor_cell_id == player_cell_id and is_in_progress:
+                print(f"Ação em progresso encontrada: ID={action_id}, Tipo={action_type}")
+                return True, action_id, action_type
+
+    print("Nenhuma ação em progresso encontrada para o summoner.")
+    return False, None, None
+
+def complete_action(url, basic_token, action_id, champion_id):
+    """
+    Completa uma ação de seleção de campeão.
+
+    Args:
+        url (str): A URL base do LCU.
+        basic_token (str): O token básico de autenticação.
+        action_id (int): O ID da ação a ser completada.
+        champion_id (int): O ID do campeão a ser atribuído à ação.
+
+    Returns:
+        bool: True se a ação foi completada com sucesso, False caso contrário.
+    """
+    try:
+        response = requests.patch(
+            f"{url}/lol-champ-select/v1/session/actions/{action_id}",
+            headers={"Authorization": f"Basic {basic_token}"},
+            json={"championId": champion_id, "completed": True},
+            verify=False
+        )
+        
+        if response.status_code == 204:
+            print(f"Ação {action_id} completada com sucesso com o campeão {champion_id}.")
+            return True
+        else:
+            print(f"Erro ao completar a ação: {response.status_code}, Mensagem: {response.text}")
+            return False
+
+    except Exception as e:
+        print(f"Erro ao completar a ação: {e}")
+        return False
+
+def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list, ban_champion_list):
+    """
+    Gerencia a seleção e banimento de campeões com base na sessão atual e na lista de campeões proibidos.
+
+    Args:
+        url (str): A URL base do LCU.
+        basic_token (str): O token básico de autenticação.
+        summoner_id (int): O ID do summoner.
+        pick_champion_list (list): Lista de campeões disponíveis para pick.
+        ban_champion_list (list): Lista de campeões disponíveis para ban.
+
+    Returns:
+        None
+    """
+    # Obtém os dados da sessão
+    session_data = get_session_data(url, basic_token)  # Supondo que você tenha esse método implementado
+
+    if session_data is None:
+        print("Não foi possível obter os dados da sessão.")
+        return
+
+    # Verifica se a ação é do summoner
+    is_in_progress, action_id, action_type = check_current_actions()  # Método anteriormente definido
+
+    if not is_in_progress:
+        print("Nenhuma ação em progresso encontrada para o summoner.")
+        return
+
+    # Obtém a lista de campeões proibidos
+    forbidden_champions_list = get_forbidden_champions(session_data)  # Método que você implementou anteriormente
+
+    # Verifica se a ação é um "pick" ou "ban"
+    if action_type == "pick":
+        for champion_id in pick_champion_list:
+            if champion_id not in forbidden_champions_list:
+                # Completa a ação de pick
+                if complete_action(url, basic_token, action_id, champion_id):
+                    print(f"Campeão {champion_id} selecionado com sucesso.")
+                    return
+                else:
+                    print(f"Erro ao tentar selecionar o campeão {champion_id}.")
+        print("Todos os campeões na lista de pick estão proibidos.")
+    
+    elif action_type == "ban":
+        for champion_id in ban_champion_list:
+            if champion_id not in forbidden_champions_list:
+                # Completa a ação de ban
+                if complete_action(url, basic_token, action_id, champion_id):
+                    print(f"Campeão {champion_id} banido com sucesso.")
+                    return
+                else:
+                    print(f"Erro ao tentar banir o campeão {champion_id}.")
+        print("Todos os campeões na lista de ban estão proibidos.")
+    
+    else:
+        print("Ação não reconhecida. Apenas 'pick' ou 'ban' são permitidos.")
+
+
+from login import generate_auth
+from summoner import Summoner
+
+if __name__ == "__main__":
+    auth_info = generate_auth(should_mock_lcu=True)
+    summoner = Summoner.get_current_summoner(auth_info)
+    
+    success, session_data = get_session_data(auth_info['url'], auth_info['basic_token'], summoner.summoner_id)
+    
+    if success:
+        #print("Sessão completa:", session_data)
+        get_forbidden_champions(summoner.summoner_id)  # Chama o novo método
+        print("\n\n forbbiden_champions_list:", forbidden_champions_list)
+        isMyAction = check_current_actions()
+        print("isMyAction:", isMyAction)
+    #else:
+        #print("Falha ao obter dados da sessão.")

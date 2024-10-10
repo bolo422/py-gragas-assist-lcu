@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ações - Flask League App</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .champion-container {
+            position: relative;
+            display: inline-block;
+            margin: 10px;
+        }
+        .champion-icon {
+            width: 100px;
+            height: 100px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .champion-icon:hover {
+            transform: scale(1.1);
+        }
+        .selected {
+            border: 3px solid #007bff;
+            border-radius: 50%;
+        }
+        .champion-number {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+            pointer-events: none; /* Faz com que o número não interfira no clique */
+            text-shadow: 2px 2px 4px #000; /* Adiciona sombra para melhor visibilidade */
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center">
+                <h2 class="mt-4">Bem-vindo {{ summoner.game_name }}</h2>
+                <h1 class="my-5">Configurações de Automação</h1>
+                <!-- Botão mutável e texto centralizados -->
+                <div class="d-flex justify-content-center align-items-center my-5">
+                    <h5 class="mb-0 me-3">Aceitar Partidas:</h5>
+                    <button id="toggleButton" class="btn btn-{{ 'success' if accept_matches else 'danger' }} btn-lg">
+                        {{ 'ATIVADO' if accept_matches else 'DESATIVADO' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mt-4">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Selecionar Campeões para Escolher</h3>
+                    <div>
+                        <div id="selectedPickChampions" class="d-flex"></div>
+                        <button id="clearPickButton" class="btn btn-sm btn-outline-secondary ms-2">Limpar Lista</button>
+                    </div>
+                </div>
+                <div id="pickChampionGrid" class="d-flex flex-wrap justify-content-center"></div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+                    <h3>Selecionar Campeões para Banir</h3>
+                    <div>
+                        <div id="selectedBanChampions" class="d-flex"></div>
+                        <button id="clearBanButton" class="btn btn-sm btn-outline-secondary ms-2">Limpar Lista</button>
+                    </div>
+                </div>
+                <div id="banChampionGrid" class="d-flex flex-wrap justify-content-center mb-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS (opcional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        const toggleButton = document.getElementById("toggleButton");
+        let acceptMatches = {{ accept_matches | tojson }};
+        const champions = {{ champions | tojson }};
+        let selectedBanChampions = {{ selected_ban_champions | tojson }};
+        let selectedPickChampions = {{ selected_pick_champions | tojson }};
+
+
+        // Define o texto e a classe do botão com base no estado atual
+        function updateButton() {
+            toggleButton.textContent = acceptMatches ? "ATIVADO" : "DESATIVADO";
+            toggleButton.className = `btn btn-${acceptMatches ? 'success' : 'danger'} btn-lg`;
+        }
+
+        // Evento de clique para alternar o estado
+        toggleButton.addEventListener("click", function() {
+            acceptMatches = !acceptMatches; // Alterna o valor booleano
+
+            // Envia a nova configuração para o servidor
+            fetch("/actions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    accept_matches: acceptMatches
+                })
+            })
+            .then(() => {
+                updateButton(); // Atualiza o botão após a resposta do servidor
+            })
+            .catch(error => console.error("Error:", error));
+        });
+
+        // Mostra o próximo estado ao passar o mouse
+        toggleButton.addEventListener("mouseover", function() {
+            toggleButton.textContent = acceptMatches ? "DESATIVADO" : "ATIVADO";
+            toggleButton.className = `btn btn-${acceptMatches ? 'danger' : 'success'} btn-lg`;
+        });
+
+        // Restaura o texto original ao sair do hover
+        toggleButton.addEventListener("mouseout", function() {
+            updateButton(); // Restaura o texto e classe originais
+        });
+
+        // Atualiza o botão ao carregar a página
+        updateButton();
+
+
+        function loadChampions() {
+            const version = "14.20.1";
+            const banChampionGrid = document.getElementById("banChampionGrid");
+            const pickChampionGrid = document.getElementById("pickChampionGrid");
+
+            for (const [key, name] of Object.entries(champions)) {
+                const championContainerBan = createChampionContainer(key, name, "ban", version);
+                const championContainerPick = createChampionContainer(key, name, "pick", version);
+                banChampionGrid.appendChild(championContainerBan);
+                pickChampionGrid.appendChild(championContainerPick);
+            }
+            updateSelectedChampions('pick');
+            updateSelectedChampions('ban');
+            updateChampionIcons(true);  // Update ban icons
+            updateChampionIcons(false); // Update pick icons
+        }
+
+        function createChampionContainer(key, name, type, version) {
+            const container = document.createElement("div");
+            container.className = "champion-container";
+
+            const img = document.createElement("img");
+            img.src = `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${key}.png`;
+            img.alt = name;
+            img.className = "champion-icon";
+            img.onclick = () => toggleChampionSelection(key, type);
+
+            const numberOverlay = document.createElement("div");
+            numberOverlay.className = "champion-number";
+            numberOverlay.id = `${type}-${key}-number`; // ID único para cada número
+
+            container.appendChild(img);
+            container.appendChild(numberOverlay);
+            return container;
+        }
+
+        function toggleChampionSelection(championKey, type) {
+            const isBan = type === "ban";
+            const selectedChampions = isBan ? selectedBanChampions : selectedPickChampions;
+
+            if (selectedChampions.includes(championKey)) {
+                selectedChampions.splice(selectedChampions.indexOf(championKey), 1);
+                notifyBackend(championKey, type, false);
+            } else {
+                if (selectedChampions.length < 3) {
+                    selectedChampions.push(championKey);
+                    notifyBackend(championKey, type, true);
+                } else {
+                    alert(`Você só pode selecionar até 3 campeões para ${type === "ban" ? "banir" : "escolher"}.`);
+                    return;
+                }
+            }
+
+            updateSelectedChampions(type);
+            updateChampionIcons(isBan);
+        }
+
+        function notifyBackend(championKey, type, isSelecting) {
+            fetch(`/actions/select_champion`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ champion: championKey, type: type, selecting: isSelecting })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.selectedChampions) {
+                    updateSelections(data.selectedChampions);
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+
+        function updateChampionIcons(isBan) {
+            const championGrid = document.getElementById(isBan ? "banChampionGrid" : "pickChampionGrid");
+            const selectedChampions = isBan ? selectedBanChampions : selectedPickChampions;
+            const championsInGrid = Array.from(championGrid.getElementsByClassName("champion-icon"));
+
+            championsInGrid.forEach((img, index) => {
+                const key = Object.keys(champions)[index];
+                const numberOverlay = document.getElementById(`${isBan ? 'ban' : 'pick'}-${key}-number`);
+
+                if (selectedChampions.includes(key)) {
+                    img.classList.add("selected");
+                    numberOverlay.textContent = selectedChampions.indexOf(key) + 1; // Define o número
+                } else {
+                    img.classList.remove("selected");
+                    numberOverlay.textContent = ""; // Remove o número se não estiver selecionado
+                }
+            });
+        }
+
+        function updateSelectedChampions(type) {
+            const selectedChampions = type === 'pick' ? selectedPickChampions : selectedBanChampions;
+            const container = document.getElementById(`selected${type.charAt(0).toUpperCase() + type.slice(1)}Champions`);
+            container.innerHTML = '';
+            
+            selectedChampions.forEach(championKey => {
+                const img = document.createElement('img');
+                img.src = `https://ddragon.leagueoflegends.com/cdn/14.20.1/img/champion/${championKey}.png`;
+                img.alt = champions[championKey];
+                img.className = 'selected-champion-icon';
+                img.style.width = '30px';
+                img.style.height = '30px';
+                img.style.marginRight = '5px';
+                container.appendChild(img);
+            });
+        }
+
+        function clearSelectedChampions(type) {
+            if (type === 'pick') {
+                for (const champion of selectedPickChampions) {
+                    notifyBackend(champion, 'pick', false);
+                }
+                selectedPickChampions = [];
+            } else {
+                for (const champion of selectedBanChampions) {
+                    notifyBackend(champion, 'ban', false);
+                }
+                selectedBanChampions = [];
+            }
+            updateSelectedChampions(type);
+            updateChampionIcons(type === 'ban');
+        }
+
+        document.getElementById('clearPickButton').addEventListener('click', () => clearSelectedChampions('pick'));
+        document.getElementById('clearBanButton').addEventListener('click', () => clearSelectedChampions('ban'));
+
+        loadChampions();
+    </script>
+</body>
+</html>
