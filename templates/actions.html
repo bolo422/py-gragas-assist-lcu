@@ -40,9 +40,36 @@
             pointer-events: none; /* Faz com que o número não interfira no clique */
             text-shadow: 2px 2px 4px #000; /* Adiciona sombra para melhor visibilidade */
         }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1080;
+        }
+        /* Estilo de alerta para o Toast */
+        #connection-toast {
+            background-color: #dc3545; /* Fundo vermelho */
+            color: white;              /* Texto branco */
+            font-size: 1.2rem;         /* Aumentar o tamanho da fonte */
+            padding: 15px;             /* Maior espaçamento interno */
+        }
+
+        /* Estilo do cabeçalho do Toast */
+        .toast-header {
+            background-color: #b02a37; /* Cor mais escura no cabeçalho */
+            color: white;              /* Texto branco */
+        }
+
+        .toast-body {
+            font-weight: bold;         /* Tornar o texto do corpo em negrito */
+        }
     </style>
 </head>
 <body class="bg-light">
+    <!-- Alerta de conexão permanente -->
+    <div id="connection-alert" class="alert alert-danger" role="alert" style="display: none;">
+        <strong>⚠️ Conexão Perdida</strong> Conexão com o servidor perdida. Tentando reconectar...
+    </div>
     <div class="container">
         <div class="row justify-content-center">
             <div class="col-md-6 text-center">
@@ -58,7 +85,7 @@
             </div>
         </div>
 
-        <div class="row justify-content-center mt-4">
+        <div class="row justify-content-center mt-4" id="championSelection">
             <div class="col-md-12">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3>Selecionar Campeões para Escolher</h3>
@@ -66,8 +93,13 @@
                         <div id="selectedPickChampions" class="d-flex"></div>
                         <button id="clearPickButton" class="btn btn-sm btn-outline-secondary ms-2">Limpar Lista</button>
                     </div>
+                    <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#pickChampionList" aria-expanded="false" aria-controls="pickChampionList">
+                        Toggle Lista de Campeões
+                    </button>
                 </div>
-                <div id="pickChampionGrid" class="d-flex flex-wrap justify-content-center"></div>
+                <div class="collapse" id="pickChampionList">
+                    <div id="pickChampionGrid" class="d-flex flex-wrap justify-content-center"></div>
+                </div>
                 
                 <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
                     <h3>Selecionar Campeões para Banir</h3>
@@ -75,8 +107,14 @@
                         <div id="selectedBanChampions" class="d-flex"></div>
                         <button id="clearBanButton" class="btn btn-sm btn-outline-secondary ms-2">Limpar Lista</button>
                     </div>
+                    <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#banChampionList" aria-expanded="false" aria-controls="banChampionList">
+                        Toggle Lista de Campeões
+                    </button>
                 </div>
-                <div id="banChampionGrid" class="d-flex flex-wrap justify-content-center mb-4"></div>
+                <div class="collapse" id="banChampionList">
+                    <div id="banChampionGrid" class="d-flex flex-wrap justify-content-center mb-4"></div>
+                </div>
+                
             </div>
         </div>
     </div>
@@ -263,6 +301,43 @@
         document.getElementById('clearBanButton').addEventListener('click', () => clearSelectedChampions('ban'));
 
         loadChampions();
+
+
+        let intervalId;
+        let retryInterval = 3000; // Inicialmente, 3 segundos de intervalo para checar o backend
+        let isConnectionLostNotificationShowing = false;
+
+        function checkServerRestart() {
+            fetch('/check_restart')
+                .then(response => response.json())
+                .then(data => {
+                    const lastRefresh = localStorage.getItem('lastRefresh');
+                    const serverRestartTime = data.server_restart_time;
+
+                    if (!lastRefresh || lastRefresh !== serverRestartTime) {
+                        localStorage.setItem('lastRefresh', serverRestartTime);
+                        location.reload(); 
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar o estado do servidor:', error);
+                    showConnectionLostNotification();
+                    clearInterval(intervalId);
+                    retryInterval = 500;
+                    intervalId = setInterval(checkServerRestart, retryInterval);  
+                });
+        }
+
+        function showConnectionLostNotification() {
+            if (isConnectionLostNotificationShowing) return;  
+            isConnectionLostNotificationShowing = true;
+            document.getElementById("connection-alert").style.display = "block";
+            // document.getElementById("connection-alert").style.display = "none";
+        }
+
+        window.onload = function() {
+            intervalId = setInterval(checkServerRestart, retryInterval);
+        };
     </script>
 </body>
 </html>

@@ -72,9 +72,13 @@ def parse_champions(input_file='all_champions.json', output_file='parsed_champio
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(champions_dict, f, ensure_ascii=False, indent=4)
 
+        # return a dict of parsed champions
         print(f"Parsed champions saved to {output_file}")
+        return champions_dict
+
     except Exception as e:
         print(f"Error parsing champions: {e}")
+        return None
     
 if __name__ == "__main__":
     fetch_all_champions()

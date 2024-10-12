@@ -12,7 +12,7 @@ import argparse
 from login import generate_auth
 from summoner import Summoner
 from matchmaking import accept_ready_check, get_gameflow_phase, GameflowPhase
-from dragonapi import fetch_all_champions
+from dragonapi import fetch_all_champions, parse_champions
 from champion_select import manage_champion_selection
 
 app = Flask(__name__)
@@ -21,6 +21,8 @@ auth_info = {}
 summoner = None
 should_mock_lcu = False
 have_gameflow_check_started = False
+champions = parse_champions()
+server_restart_time = str(time.time())
 
 def load_persistent_data():
     file_path = 'persistent_data.json'
@@ -82,9 +84,9 @@ def index():
 
 @app.route('/champions')
 def get_champions():
+    global champions
     try:
-        with open('parsed_champions.json', 'r') as f:
-            champions = json.load(f)
+        champions = parse_champions
         return jsonify(champions), 200
     except Exception as e:
         print(f"Error loading champions: {e}")
@@ -92,15 +94,14 @@ def get_champions():
 
 @app.route('/actions', methods=['GET', 'POST'])
 def actions():
-    global accept_matches, summoner, selected_ban_champions, selected_pick_champions
+    global accept_matches, summoner, selected_ban_champions, selected_pick_champions, champions
     if request.method == 'POST':
         accept_matches = request.form.get('accept_matches') == 'true'
         save_persistent_data()
         return '', 204
     
-    # Aqui, você pode carregar os campeões e passá-los para o template
-    with open('parsed_champions.json', 'r') as f:
-        champions = json.load(f)
+    champions = parse_champions()
+    start_gameflow_check()
     
     return render_template('actions.html', 
                            accept_matches=accept_matches, 
@@ -108,6 +109,11 @@ def actions():
                            champions=champions,
                            selected_ban_champions=selected_ban_champions,
                            selected_pick_champions=selected_pick_champions)
+
+@app.route('/check_restart')
+def check_restart():
+    # Retorna o valor atual de server_restart_time para o frontend
+    return jsonify({'server_restart_time': server_restart_time})
 
 @app.route('/actions/select_champion', methods=['POST'])
 def select_champion():
@@ -155,22 +161,43 @@ def job_check_gameflow():
     while True:
         phase = get_gameflow_phase(auth_info['url'], auth_info['basic_token'])
         #print(f"Current gameflow phase: {phase}")
-
+        #print('accept_matches:', accept_matches, 'thread: ', threading.current_thread())
         if phase == GameflowPhase.READY_CHECK and accept_matches:
             success = accept_ready_check(auth_info['url'], auth_info['basic_token'])
-            print(f"Accepted ready check: {success}")
+            #print(f"Accepted ready check: {success}")
         
         if phase == GameflowPhase.CHAMP_SELECT and (selected_ban_champions or selected_pick_champions):
-            manage_champion_selection(auth_info['url'], auth_info['basic_token'], selected_ban_champions, selected_pick_champions)
+            ban_champion_list = []
+            pick_champion_list = []
+
+            for champion_key in selected_ban_champions:
+                ban_champion_list.append(champions[champion_key])
+
+            for champion_key in selected_pick_champions:
+                pick_champion_list.append(champions[champion_key])
+
+            manage_champion_selection(
+                auth_info['url'], 
+                auth_info['basic_token'], 
+                summoner.summoner_id,
+                pick_champion_list,
+                ban_champion_list
+                )
 
         # Aguarda um intervalo aleatório entre 1 e 3 segundos
         time.sleep(random.uniform(1, 3))
 
+def start_thread(target):
+    print('!!!!!!!!!!!!!!!!!!!!!!!!! Starting thread:', target)
+    threading.Thread(target=target, daemon=True).start()
+
 # Inicie o job em um thread separado
 def start_gameflow_check():
-    if(have_gameflow_check_started):
+    global have_gameflow_check_started
+    if have_gameflow_check_started:
         return
-    threading.Thread(target=job_check_gameflow, daemon=True).start()
+    have_gameflow_check_started = True
+    start_thread(job_check_gameflow)
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -210,7 +237,6 @@ if __name__ == '__main__':
     fetch_all_champions()
     try:
         summoner = get_summoner_data()
-        start_gameflow_check()
     except Exception as e:
         print(f"Error fetching summoner data: {e}")
 

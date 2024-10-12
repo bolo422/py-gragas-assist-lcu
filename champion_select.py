@@ -40,7 +40,7 @@ def get_session_data(url, basic_token, summoner_id):
             #    if player.get('summonerId') == summoner_id:
             #        player_cell_id = player.get('cellId')
             #        print(f"cellId encontrado: {player_cell_id}")
-            if player_cell_id:
+            if player_cell_id is not None:
                 return True, session_data
 
             print(f"summonerId {summoner_id} não encontrado em myTeam.")
@@ -53,6 +53,51 @@ def get_session_data(url, basic_token, summoner_id):
         print(f"Erro ao buscar a sessão de jogo: {e}")
         return False, None
 
+def declare_pick_intent(url, basic_token, summoner_id, pick_champion_list):
+    """
+    Declara a intenção do jogador de escolher um campeão se ele não possui nenhum.
+
+    Args:
+        url (str): A URL base do LCU.
+        basic_token (str): O token básico de autenticação.
+        summoner_id (int): O summonerId do jogador.
+        pick_champion_list (list): Lista de campeões disponíveis para pick.
+
+    Returns:
+        bool: True se a intenção de pick foi declarada com sucesso, False caso contrário.
+    """
+    global player_session
+
+    if player_session is None:
+        print("Dados da sessão não disponíveis.")
+        return
+    
+    # Verifica se o jogador já possui um campeão
+    player_has_pick = False
+    player_has_pick_intent = False
+    for player in player_session.get('myTeam', []):
+        if player.get('summonerId') == summoner_id:
+            champion_id = player.get('championId')
+            champion_pick_intent = player.get('championPickIntent')
+            player_has_pick = champion_id != 0
+            player_has_pick_intent = champion_pick_intent != 0
+            break
+
+    # jogador já possui um campeão ou intenção de pick
+    if player_has_pick == True or player_has_pick_intent == True:
+        return False
+
+    # Se o jogador não possui campeões, seleciona o primeiro da lista de picks
+    if pick_champion_list:
+        first_champion_id = pick_champion_list[0]
+        # Aqui você pode querer buscar o action_id novamente para a nova intenção de pick
+        if complete_action(url, basic_token, None, first_champion_id):
+            print(f"Intenção de pick declarada com o campeão {first_champion_id} (completado como False).")
+            # Aqui você pode definir completed como False
+            return True
+        else:
+            print(f"Erro ao declarar a intenção de pick com o campeão {first_champion_id}.")
+            return False
 
 def get_forbidden_champions(summoner_id):
     """
@@ -66,7 +111,7 @@ def get_forbidden_champions(summoner_id):
 
     if player_session is None:
         print("Dados da sessão não disponíveis.")
-        return
+        return None
     
     forbidden_champions_list.clear()  # Limpa a lista antes de preenchê-la
 
@@ -82,7 +127,8 @@ def get_forbidden_champions(summoner_id):
 
     # Remove duplicatas, se houver
     forbidden_champions_list = list(set(forbidden_champions_list))
-    print("Lista de campeões proibidos:", forbidden_champions_list)
+    #print("Lista de campeões proibidos:", forbidden_champions_list)
+    return forbidden_champions_list
 
 
 def check_current_actions():
@@ -109,10 +155,10 @@ def check_current_actions():
             action_type = action.get('type')
 
             if actor_cell_id == player_cell_id and is_in_progress:
-                print(f"Ação em progresso encontrada: ID={action_id}, Tipo={action_type}")
+                #print(f"Ação em progresso encontrada: ID={action_id}, Tipo={action_type}")
                 return True, action_id, action_type
 
-    print("Nenhuma ação em progresso encontrada para o summoner.")
+    #print("Nenhuma ação em progresso encontrada para o summoner.")
     return False, None, None
 
 def complete_action(url, basic_token, action_id, champion_id):
@@ -162,22 +208,25 @@ def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list,
         None
     """
     # Obtém os dados da sessão
-    session_data = get_session_data(url, basic_token)  # Supondo que você tenha esse método implementado
+    session_data = get_session_data(url, basic_token, summoner_id)  # Supondo que você tenha esse método implementado
 
     if session_data is None:
         print("Não foi possível obter os dados da sessão.")
         return
+    
+    # Declara a intenção de pick se o jogador não possui campeões
+    #if(declare_pick_intent(url, basic_token, summoner_id, pick_champion_list)):
+    #    return
 
     # Verifica se a ação é do summoner
     is_in_progress, action_id, action_type = check_current_actions()  # Método anteriormente definido
 
     if not is_in_progress:
-        print("Nenhuma ação em progresso encontrada para o summoner.")
+        #print("Nenhuma ação em progresso encontrada para o summoner.")
         return
 
     # Obtém a lista de campeões proibidos
     forbidden_champions_list = get_forbidden_champions(session_data)  # Método que você implementou anteriormente
-
     # Verifica se a ação é um "pick" ou "ban"
     if action_type == "pick":
         for champion_id in pick_champion_list:
@@ -204,21 +253,21 @@ def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list,
     else:
         print("Ação não reconhecida. Apenas 'pick' ou 'ban' são permitidos.")
 
-
 from login import generate_auth
 from summoner import Summoner
+import time
 
 if __name__ == "__main__":
-    auth_info = generate_auth(should_mock_lcu=True)
-    summoner = Summoner.get_current_summoner(auth_info)
-    
-    success, session_data = get_session_data(auth_info['url'], auth_info['basic_token'], summoner.summoner_id)
-    
-    if success:
-        #print("Sessão completa:", session_data)
-        get_forbidden_champions(summoner.summoner_id)  # Chama o novo método
-        print("\n\n forbbiden_champions_list:", forbidden_champions_list)
-        isMyAction = check_current_actions()
-        print("isMyAction:", isMyAction)
-    #else:
-        #print("Falha ao obter dados da sessão.")
+    # login then call session every 0.5s, printing the value of "counter"
+    login_data = generate_auth()
+    summoner = Summoner.get_current_summoner(login_data)
+    while True:
+        session = get_session_data(login_data['url'], login_data['basic_token'], summoner.summoner_id)
+        if session:
+            now = time.time()
+            time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))
+            try:
+                print(time_str, ': ', session.get('counter'))
+            except:
+                print(time_str, ': ', 'no counter')
+        time.sleep(0.5)
