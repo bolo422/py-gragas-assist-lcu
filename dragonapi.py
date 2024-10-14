@@ -3,6 +3,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import json
 import requests
+from logger import log, LogLevel
 
 def fetch_latest_version():
     """
@@ -17,13 +18,13 @@ def fetch_latest_version():
             # this response is a list of versions in json format like this: {["1.1", "1.2", "1.3"]}
             # should get the first one and set it as the latest version
             versions = response.json()
-            print(versions[0])
+            log(LogLevel.INFO, versions[0])
             return versions[0]  # Retorna a primeira versão
         else:
-            print(f"Error fetching versions: {response.status_code}")
+            log(LogLevel.ERROR, f"Error fetching versions: {response.status_code}")
             return None
     except Exception as e:
-        print(f"Error fetching versions: {e}")
+        log(LogLevel.ERROR, f"Error fetching versions: {e}")
         return None
 
 def fetch_all_champions(version=None):
@@ -47,10 +48,10 @@ def fetch_all_champions(version=None):
                 json.dump(champions_data, f, ensure_ascii=False, indent=4)
             return champions_data
         else:
-            print(f"Error fetching champions: {response.status_code}")
+            log(LogLevel.ERROR, f"Error fetching champions: {response.status_code}")
             return None
     except Exception as e:
-        print(f"Error fetching champions: {e}")
+        log(LogLevel.ERROR, f"Error fetching champions: {e}")
         return None
     
 def parse_champions(input_file='all_champions.json', output_file='parsed_champions.json'):
@@ -73,11 +74,11 @@ def parse_champions(input_file='all_champions.json', output_file='parsed_champio
             json.dump(champions_dict, f, ensure_ascii=False, indent=4)
 
         # return a dict of parsed champions
-        print(f"Parsed champions saved to {output_file}")
+        log(LogLevel.INFO, f"Parsed champions saved to {output_file}")
         return champions_dict
 
     except Exception as e:
-        print(f"Error parsing champions: {e}")
+        log(LogLevel.ERROR, f"Error parsing champions: {e}")
         return None
     
 if __name__ == "__main__":

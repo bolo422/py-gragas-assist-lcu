@@ -5,6 +5,7 @@ import os
 import base64
 import json
 from dotenv import load_dotenv
+from logger import log, LogLevel
 
 # Carregar o caminho da pasta Riot Games do arquivo .env
 load_dotenv()
@@ -68,14 +69,14 @@ def save_auth_data(auth_data, file_path):
     try:
         with open(file_path, 'w') as f:
             json.dump(auth_data, f, indent=4)
-        print(f"Dados de login salvos em: {file_path}")
+        log(LogLevel.INFO, f"Dados de login salvos em: {file_path}")
     except Exception as e:
-        print(f"Erro ao salvar os dados de login: {e}")
+        log(LogLevel.ERROR, f"Erro ao salvar os dados de login: {e}")
 
 if __name__ == "__main__":
     auth_info = generate_auth()
     
     # Exibir os dados no terminal
-    print(f"Password: {auth_info['password']}")
-    print(f"URL: {auth_info['url']}")
-    print(f"Basic Token: {auth_info['basic_token']}")
+    log(LogLevel.WARNING, f"Password: {auth_info['password']}")
+    log(LogLevel.WARNING, f"URL: {auth_info['url']}")
+    log(LogLevel.WARNING, f"Basic Token: {auth_info['basic_token']}")

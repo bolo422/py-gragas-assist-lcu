@@ -2,6 +2,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import requests
+from logger import log, LogLevel
 
 # Variáveis globais
 player_cell_id = None
@@ -39,18 +40,18 @@ def get_session_data(url, basic_token, summoner_id):
             #for player in session_data.get('myTeam', []):
             #    if player.get('summonerId') == summoner_id:
             #        player_cell_id = player.get('cellId')
-            #        print(f"cellId encontrado: {player_cell_id}")
+            #        log(LogLevel.ERROR, f"cellId encontrado: {player_cell_id}")
             if player_cell_id is not None:
                 return True, session_data
 
-            print(f"summonerId {summoner_id} não encontrado em myTeam.")
+            log(LogLevel.ERROR, f"summonerId {summoner_id} não encontrado em myTeam.")
             return False, session_data
         else:
-            print(f"Erro ao buscar a sessão: {response.status_code}")
+            log(LogLevel.ERROR, f"Erro ao buscar a sessão: {response.status_code}")
             return False, None
 
     except Exception as e:
-        print(f"Erro ao buscar a sessão de jogo: {e}")
+        log(LogLevel.ERROR, f"Erro ao buscar a sessão de jogo: {e}")
         return False, None
 
 def declare_pick_intent(url, basic_token, summoner_id, pick_champion_list):
@@ -69,7 +70,7 @@ def declare_pick_intent(url, basic_token, summoner_id, pick_champion_list):
     global player_session
 
     if player_session is None:
-        print("Dados da sessão não disponíveis.")
+        log(LogLevel.ERROR, "Dados da sessão não disponíveis.")
         return
     
     # Verifica se o jogador já possui um campeão
@@ -92,11 +93,11 @@ def declare_pick_intent(url, basic_token, summoner_id, pick_champion_list):
         first_champion_id = pick_champion_list[0]
         # Aqui você pode querer buscar o action_id novamente para a nova intenção de pick
         if complete_action(url, basic_token, None, first_champion_id):
-            print(f"Intenção de pick declarada com o campeão {first_champion_id} (completado como False).")
+            log(LogLevel.INFO, f"Intenção de pick declarada com o campeão {first_champion_id} (completado como False).")
             # Aqui você pode definir completed como False
             return True
         else:
-            print(f"Erro ao declarar a intenção de pick com o campeão {first_champion_id}.")
+            log(LogLevel.ERROR, f"Erro ao declarar a intenção de pick com o campeão {first_champion_id}.")
             return False
 
 def get_forbidden_champions(summoner_id):
@@ -110,7 +111,7 @@ def get_forbidden_champions(summoner_id):
     global forbidden_champions_list, player_session
 
     if player_session is None:
-        print("Dados da sessão não disponíveis.")
+        log(LogLevel.ERROR, "Dados da sessão não disponíveis.")
         return None
     
     forbidden_champions_list.clear()  # Limpa a lista antes de preenchê-la
@@ -127,7 +128,7 @@ def get_forbidden_champions(summoner_id):
 
     # Remove duplicatas, se houver
     forbidden_champions_list = list(set(forbidden_champions_list))
-    #print("Lista de campeões proibidos:", forbidden_champions_list)
+    #log(LogLevel.ERROR, "Lista de campeões proibidos:", forbidden_champions_list)
     return forbidden_champions_list
 
 
@@ -144,7 +145,7 @@ def check_current_actions():
     global player_session
 
     if player_session is None or 'actions' not in player_session:
-        print("Dados da sessão ou ações não disponíveis.")
+        log(LogLevel.ERROR, "Dados da sessão ou ações não disponíveis.")
         return False, None, None
     
     for action_list in player_session['actions']:  # Percorre cada lista de ações
@@ -155,10 +156,10 @@ def check_current_actions():
             action_type = action.get('type')
 
             if actor_cell_id == player_cell_id and is_in_progress:
-                #print(f"Ação em progresso encontrada: ID={action_id}, Tipo={action_type}")
+                #log(LogLevel.ERROR, f"Ação em progresso encontrada: ID={action_id}, Tipo={action_type}")
                 return True, action_id, action_type
 
-    #print("Nenhuma ação em progresso encontrada para o summoner.")
+    #log(LogLevel.ERROR, "Nenhuma ação em progresso encontrada para o summoner.")
     return False, None, None
 
 def complete_action(url, basic_token, action_id, champion_id):
@@ -183,14 +184,14 @@ def complete_action(url, basic_token, action_id, champion_id):
         )
         
         if response.status_code == 204:
-            print(f"Ação {action_id} completada com sucesso com o campeão {champion_id}.")
+            log(LogLevel.INFO, f"Ação {action_id} completada com sucesso com o campeão {champion_id}.")
             return True
         else:
-            print(f"Erro ao completar a ação: {response.status_code}, Mensagem: {response.text}")
+            log(LogLevel.ERROR, f"Erro ao completar a ação: {response.status_code}, Mensagem: {response.text}")
             return False
 
     except Exception as e:
-        print(f"Erro ao completar a ação: {e}")
+        log(LogLevel.ERROR, f"Erro ao completar a ação: {e}")
         return False
 
 def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list, ban_champion_list):
@@ -211,7 +212,7 @@ def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list,
     session_data = get_session_data(url, basic_token, summoner_id)  # Supondo que você tenha esse método implementado
 
     if session_data is None:
-        print("Não foi possível obter os dados da sessão.")
+        log(LogLevel.ERROR, "Não foi possível obter os dados da sessão.")
         return
     
     # Declara a intenção de pick se o jogador não possui campeões
@@ -222,7 +223,7 @@ def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list,
     is_in_progress, action_id, action_type = check_current_actions()  # Método anteriormente definido
 
     if not is_in_progress:
-        #print("Nenhuma ação em progresso encontrada para o summoner.")
+        #log(LogLevel.ERROR, "Nenhuma ação em progresso encontrada para o summoner.")
         return
 
     # Obtém a lista de campeões proibidos
@@ -233,25 +234,25 @@ def manage_champion_selection(url, basic_token, summoner_id, pick_champion_list,
             if champion_id not in forbidden_champions_list:
                 # Completa a ação de pick
                 if complete_action(url, basic_token, action_id, champion_id):
-                    print(f"Campeão {champion_id} selecionado com sucesso.")
+                    log(LogLevel.INFO, f"Campeão {champion_id} selecionado com sucesso.")
                     return
                 else:
-                    print(f"Erro ao tentar selecionar o campeão {champion_id}.")
-        print("Todos os campeões na lista de pick estão proibidos.")
+                    log(LogLevel.ERROR, f"Erro ao tentar selecionar o campeão {champion_id}.")
+        log(LogLevel.WARNING, "Todos os campeões na lista de pick estão proibidos.")
     
     elif action_type == "ban":
         for champion_id in ban_champion_list:
             if champion_id not in forbidden_champions_list:
                 # Completa a ação de ban
                 if complete_action(url, basic_token, action_id, champion_id):
-                    print(f"Campeão {champion_id} banido com sucesso.")
+                    log(LogLevel.INFO, f"Campeão {champion_id} banido com sucesso.")
                     return
                 else:
-                    print(f"Erro ao tentar banir o campeão {champion_id}.")
-        print("Todos os campeões na lista de ban estão proibidos.")
+                    log(LogLevel.ERROR, f"Erro ao tentar banir o campeão {champion_id}.")
+        log(LogLevel.WARNING, "Todos os campeões na lista de ban estão proibidos.")
     
     else:
-        print("Ação não reconhecida. Apenas 'pick' ou 'ban' são permitidos.")
+        log(LogLevel.ERROR, "Ação não reconhecida. Apenas 'pick' ou 'ban' são permitidos.")
 
 from login import generate_auth
 from summoner import Summoner
@@ -267,7 +268,7 @@ if __name__ == "__main__":
             now = time.time()
             time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now))
             try:
-                print(time_str, ': ', session.get('counter'))
+                log(LogLevel.INFO, time_str, ': ', session.get('counter'))
             except:
-                print(time_str, ': ', 'no counter')
+                log(LogLevel.ERROR, time_str, ': ', 'no counter')
         time.sleep(0.5)

@@ -4,6 +4,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from dataclasses import dataclass
 from typing import Optional
 import requests
+from logger import log, LogLevel
 
 @dataclass
 class RerollPoints:
@@ -71,8 +72,8 @@ class Summoner:
                 summoner_data = response.json()
                 return cls.from_dict(summoner_data)
             else:
-                print(f"Error fetching current summoner: {response.status_code}")
+                log(LogLevel.ERROR, f"Error fetching current summoner: {response.status_code}")
                 return None
         except Exception as e:
-            print(f"Error fetching current summoner: {e}")
+            log(LogLevel.ERROR, f"Error fetching current summoner: {e}")
             return None

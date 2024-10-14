@@ -3,6 +3,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 import requests
 from enum import Enum
+from logger import log, LogLevel
 
 class GameflowPhase(Enum):
     LOBBY = "Lobby"
@@ -36,7 +37,7 @@ def accept_ready_check(url, basic_token):
         )
         return response.status_code == 204  # Sucesso
     except Exception as e:
-        print(f"Error accepting ready check: {e}")
+        log(LogLevel.ERROR, f"Error accepting ready check: {e}")
         return False
 
 def get_gameflow_phase(url, basic_token):
@@ -60,8 +61,8 @@ def get_gameflow_phase(url, basic_token):
             state = response.text.strip('"')  # Retorna a string sem aspas
             return to_gameflow_phase(state)
         else:
-            print(f"Error fetching gameflow phase: {response.status_code}")
+            log(LogLevel.ERROR, f"Error fetching gameflow phase: {response.status_code}")
             return None
     except Exception as e:
-        print(f"Error fetching gameflow phase: {e}")
+        log(LogLevel.ERROR, f"Error fetching gameflow phase: {e}")
         return None
