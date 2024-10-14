@@ -14,6 +14,7 @@ from summoner import Summoner
 from matchmaking import accept_ready_check, get_gameflow_phase, GameflowPhase
 from dragonapi import fetch_all_champions, parse_champions
 from champion_select import manage_champion_selection
+from logger import log, LogLevel, parse_str, set_log_level
 
 app = Flask(__name__)
 
@@ -89,7 +90,7 @@ def get_champions():
         champions = parse_champions
         return jsonify(champions), 200
     except Exception as e:
-        print(f"Error loading champions: {e}")
+        log(LogLevel.ERROR, f"Error loading champions: {e}")
         return jsonify({"error": "Unable to load champions"}), 500
 
 @app.route('/actions', methods=['GET', 'POST'])
@@ -142,7 +143,7 @@ def select_champion():
 
     #with open('selected_champions_dump.json', 'w') as dump_file:
     #    json.dump(selected_ban_champions, dump_file)
-    #print(selected_ban_champions)
+    #log(LogLevel.ERROR, selected_ban_champions)
 
     save_persistent_data()
     return jsonify({
@@ -160,11 +161,11 @@ def job_check_gameflow():
     global accept_matches, auth_info
     while True:
         phase = get_gameflow_phase(auth_info['url'], auth_info['basic_token'])
-        #print(f"Current gameflow phase: {phase}")
-        #print('accept_matches:', accept_matches, 'thread: ', threading.current_thread())
+        log(LogLevel.REGULAR, f"Current gameflow phase: {phase}")
+        log(LogLevel.REGULAR, 'accept_matches:', accept_matches, 'thread: ', threading.current_thread())
         if phase == GameflowPhase.READY_CHECK and accept_matches:
             success = accept_ready_check(auth_info['url'], auth_info['basic_token'])
-            #print(f"Accepted ready check: {success}")
+            log(LogLevel.INFO, f"Accepted ready check: {success}")
         
         if phase == GameflowPhase.CHAMP_SELECT and (selected_ban_champions or selected_pick_champions):
             ban_champion_list = []
@@ -188,7 +189,7 @@ def job_check_gameflow():
         time.sleep(random.uniform(1, 3))
 
 def start_thread(target):
-    print('!!!!!!!!!!!!!!!!!!!!!!!!! Starting thread:', target)
+    log(LogLevel.WARNING, '!!!!!!!!!!!!!!!!!!!!!!!!! Starting thread:', target)
     threading.Thread(target=target, daemon=True).start()
 
 # Inicie o job em um thread separado
@@ -219,7 +220,7 @@ def accept_match():
 
 @app.route('/login_data', methods=['GET'])
 def login_data():
-    print("fetching login data")
+    log(LogLevel.WARNING, "fetching login data")
     with open('login_data.json', 'r') as f:
         return f.read()
 
@@ -229,15 +230,17 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description='League of Legends Client Mock')
     parser.add_argument('-mock', action='store_true', help='Ativar modo de mock da LCU')
+    parser.add_argument('-log', type=str, default='INFO', help='REGULAR, INFO, WARNING, ERROR, NONE')
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_arguments()
     should_mock_lcu = args.mock 
+    set_log_level(parse_str(args.log))
     fetch_all_champions()
     try:
         summoner = get_summoner_data()
     except Exception as e:
-        print(f"Error fetching summoner data: {e}")
+        log(LogLevel.ERROR, f"Error fetching summoner data: {e}")
 
     app.run(debug=True)
