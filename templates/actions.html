@@ -127,7 +127,19 @@
         let acceptMatches = {{ accept_matches | tojson }};
         const champions = {{ champions | tojson }};
         let selectedBanChampions = {{ selected_ban_champions | tojson }};
+        // if selectedBanChampions has items, capitalize (first letter)
+        
+        for (let i = 0; i < selectedBanChampions.length; i++) {
+            selectedBanChampions[i] = selectedBanChampions[i].charAt(0).toUpperCase() + selectedBanChampions[i].slice(1);
+        }
+
         let selectedPickChampions = {{ selected_pick_champions | tojson }};
+
+        // if selectedPickChampions has items, capitalize (first letter)
+
+        for (let i = 0; i < selectedPickChampions.length; i++) {
+            selectedPickChampions[i] = selectedPickChampions[i].charAt(0).toUpperCase() + selectedPickChampions[i].slice(1);
+        }
 
 
         // Define o texto e a classe do botão com base no estado atual

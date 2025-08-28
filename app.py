@@ -57,13 +57,18 @@ def load_persistent_data():
 
 # Add this function to save persistent data
 def save_persistent_data():
+    global persistent_data
     data = {
         'accept_matches': accept_matches,
         'selected_ban_champions': selected_ban_champions,
         'selected_pick_champions': selected_pick_champions
     }
-    with open('persistent_data.json', 'w') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    try:
+        with open('persistent_data.json', 'w') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        persistent_data = data
+    except Exception as e:
+        log(LogLevel.ERROR, f"Error saving persistent data: {e}")
 
 persistent_data = load_persistent_data()
 accept_matches = persistent_data['accept_matches']
@@ -185,8 +190,7 @@ def job_check_gameflow():
                 ban_champion_list
                 )
 
-        # Aguarda um intervalo aleatório entre 1 e 3 segundos
-        time.sleep(random.uniform(1, 3))
+        time.sleep(random.uniform(5, 10))
 
 def start_thread(target):
     log(LogLevel.WARNING, '!!!!!!!!!!!!!!!!!!!!!!!!! Starting thread:', target)
@@ -224,6 +228,15 @@ def login_data():
     with open('login_data.json', 'r') as f:
         return f.read()
 
+def check_and_capitalize_champion(champion_key):
+    global champions
+    # validate if the champion key is in the champions list
+    # case insensitive
+    for key in champions:
+        if key.lower() == champion_key.lower():
+            return key
+    return None
+
 def parse_arguments():
     """
     Analisa os argumentos de linha de comando.
@@ -231,16 +244,59 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='League of Legends Client Mock')
     parser.add_argument('-mock', action='store_true', help='Ativar modo de mock da LCU')
     parser.add_argument('-log', type=str, default='INFO', help='REGULAR, INFO, WARNING, ERROR, NONE')
+    parser.add_argument('-ban', type=str, help='Champions to select, separated by commas')
+    parser.add_argument('-pick', type=str, help='Champions to ban, separated by commas')
+    parser.add_argument('-accept', action='store_true', help='Accept matches automatically')
     return parser.parse_args()
+
+def set_args_champions_and_accept_matches(args):
+    global selected_ban_champions, selected_pick_champions, accept_matches, champions
+    should_save = False
+    if args.pick:
+        args_champions = args.pick.split(',')
+        temp_champions = []
+        for champion_key in args_champions:
+            champion_key_capitalized = check_and_capitalize_champion(champion_key)
+            if champion_key_capitalized == None:
+                log(LogLevel.ERROR, f"Champion key {champion_key} not found in champions list")
+                continue
+            temp_champions.append(champion_key_capitalized)
+            log(LogLevel.INFO, f"Parsed args pick champion:" + champion_key_capitalized)
+            if temp_champions:
+                selected_pick_champions = temp_champions
+                log(LogLevel.INFO, f"Selected pick champions from args: {selected_pick_champions}")
+                should_save = True
+    if args.ban:
+        args_champions = args.ban.split(',')
+        temp_champions = []
+        for champion_key in args_champions:
+            champion_key_capitalized = check_and_capitalize_champion(champion_key)
+            if champion_key_capitalized == None:
+                log(LogLevel.ERROR, f"Champion key {champion_key} not found in champions list")
+                continue
+            temp_champions.append(champion_key_capitalized)
+            log(LogLevel.INFO, f"Parsed args ban champion:" + champion_key_capitalized)
+            if temp_champions:
+                selected_ban_champions = temp_champions
+                log(LogLevel.INFO, f"Selected ban champions from args: {selected_ban_champions}")
+                should_save = True
+    if args.accept:
+        accept_matches = True
+        should_save = True
+
+    if(should_save):
+        save_persistent_data()
 
 if __name__ == '__main__':
     args = parse_arguments()
     should_mock_lcu = args.mock 
     set_log_level(parse_str(args.log))
     fetch_all_champions()
+    set_args_champions_and_accept_matches(args)
+    
     try:
         summoner = get_summoner_data()
     except Exception as e:
         log(LogLevel.ERROR, f"Error fetching summoner data: {e}")
 
-    app.run(debug=True)
+    app.run(debug=False)

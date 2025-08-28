@@ -29,6 +29,7 @@ def accept_ready_check(url, basic_token):
     Returns:
         bool: True se a requisição for bem-sucedida, False caso contrário.
     """
+    log(LogLevel.INFO, "Aceitando ready check do matchmaking...")
     try:
         response = requests.post(
             f"{url}/lol-matchmaking/v1/ready-check/accept",
@@ -59,6 +60,7 @@ def get_gameflow_phase(url, basic_token):
         )
         if response.status_code == 200:
             state = response.text.strip('"')  # Retorna a string sem aspas
+            log(LogLevel.INFO, f"Fase atual do gameflow: {state}")
             return to_gameflow_phase(state)
         else:
             log(LogLevel.ERROR, f"Error fetching gameflow phase: {response.status_code}")
