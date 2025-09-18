@@ -11,12 +11,15 @@
             position: relative;
             display: inline-block;
             margin: 10px;
+            text-align: center;
+            width: 100px;
         }
         .champion-icon {
             width: 100px;
             height: 100px;
             cursor: pointer;
             transition: transform 0.2s;
+            border-radius: 50%;
         }
         .champion-icon:hover {
             transform: scale(1.1);
@@ -39,6 +42,18 @@
             font-weight: bold;
             pointer-events: none; /* Faz com que o número não interfira no clique */
             text-shadow: 2px 2px 4px #000; /* Adiciona sombra para melhor visibilidade */
+        }
+        .champion-name {
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+            height: 30px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
         .toast-container {
             position: fixed;
@@ -189,8 +204,8 @@
             const pickChampionGrid = document.getElementById("pickChampionGrid");
 
             for (const [key, name] of Object.entries(champions)) {
-                const championContainerBan = createChampionContainer(key, name, "ban", version);
-                const championContainerPick = createChampionContainer(key, name, "pick", version);
+                const championContainerBan = createChampionContainer(key, key, "ban", version);
+                const championContainerPick = createChampionContainer(key, key, "pick", version);
                 banChampionGrid.appendChild(championContainerBan);
                 pickChampionGrid.appendChild(championContainerPick);
             }
@@ -213,9 +228,15 @@
             const numberOverlay = document.createElement("div");
             numberOverlay.className = "champion-number";
             numberOverlay.id = `${type}-${key}-number`; // ID único para cada número
+            
+            // Add champion name element
+            const nameElement = document.createElement("div");
+            nameElement.className = "champion-name";
+            nameElement.textContent = name;
 
             container.appendChild(img);
             container.appendChild(numberOverlay);
+            container.appendChild(nameElement);
             return container;
         }
 
