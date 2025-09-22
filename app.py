@@ -24,6 +24,7 @@ should_mock_lcu = False
 have_gameflow_check_started = False
 champions = parse_champions()
 server_restart_time = str(time.time())
+pause_checking_gameflow = False
 
 def load_persistent_data():
     file_path = 'persistent_data.json'
@@ -158,13 +159,31 @@ def select_champion():
         }
     })
 
+@app.route('/actions/toggle_pause_gameflow_check', methods=['POST'])
+def toggle_pause_gameflow_check():
+    global pause_checking_gameflow
+    pause_checking_gameflow = not pause_checking_gameflow
+    log(LogLevel.INFO, "Gameflow checking is paused." if pause_checking_gameflow else "Gameflow checking is resumed.")
+    return jsonify({"paused": pause_checking_gameflow})
+
+@app.route('/actions/get_pause_gameflow_check', methods=['GET'])
+def get_pause_gameflow_check():
+    return jsonify({"paused": pause_checking_gameflow})
+
 def job_check_gameflow():
     """
     Verifica o estado do game flow e aceita a partida se necessário.
     Executa em um intervalo aleatório entre 1 e 3 segundos.
     """
-    global accept_matches, auth_info
+    global accept_matches, auth_info, pause_checking_gameflow
+    min_interval = 5
+    max_interval = 10
     while True:
+        if pause_checking_gameflow:
+            log(LogLevel.INFO, "Gameflow checking is paused.")
+            time.sleep(5)
+            continue
+
         phase = get_gameflow_phase(auth_info['url'], auth_info['basic_token'])
         log(LogLevel.REGULAR, f"Current gameflow phase: {phase}")
         log(LogLevel.REGULAR, 'accept_matches:', accept_matches, 'thread: ', threading.current_thread())
@@ -189,14 +208,21 @@ def job_check_gameflow():
                 pick_champion_list,
                 ban_champion_list
                 )
+            
+        if phase == GameflowPhase.IN_PROGRESS:
+            log(LogLevel.INFO, "Game in progress. Changing interval to 60 seconds.")
+            min_interval = 55
+            max_interval = 75
+        else:
+            min_interval = 5
+            max_interval = 10
 
-        time.sleep(random.uniform(5, 10))
+        time.sleep(random.uniform(min_interval, max_interval))
 
 def start_thread(target):
     log(LogLevel.WARNING, '!!!!!!!!!!!!!!!!!!!!!!!!! Starting thread:', target)
     threading.Thread(target=target, daemon=True).start()
 
-# Inicie o job em um thread separado
 def start_gameflow_check():
     global have_gameflow_check_started
     if have_gameflow_check_started:
@@ -209,7 +235,7 @@ def start():
     global summoner
     summoner = get_summoner_data()
     if summoner:
-        start_gameflow_check()  # Iniciar a verificação do game flow
+        start_gameflow_check()
         return redirect(url_for('actions'))
     return '', 204
 

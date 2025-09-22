@@ -10,6 +10,7 @@ class GameflowPhase(Enum):
     MATCHMAKING = "Matchmaking"
     READY_CHECK = "ReadyCheck"
     CHAMP_SELECT = "ChampSelect"
+    IN_PROGRESS = "InProgress"
 
 def to_gameflow_phase(phase_str):
     try:

@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ações - Flask League App</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .champion-container {
@@ -81,21 +80,27 @@
     </style>
 </head>
 <body class="bg-light">
-    <!-- Alerta de conexão permanente -->
     <div id="connection-alert" class="alert alert-danger" role="alert" style="display: none;">
         <strong>⚠️ Conexão Perdida</strong> Conexão com o servidor perdida. Tentando reconectar...
     </div>
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-6 text-center">
+            <div class="col-md-8 text-center">
                 <h2 class="mt-4">Bem-vindo {{ summoner.game_name }}</h2>
                 <h1 class="my-5">Configurações de Automação</h1>
-                <!-- Botão mutável e texto centralizados -->
-                <div class="d-flex justify-content-center align-items-center my-5">
-                    <h5 class="mb-0 me-3">Aceitar Partidas:</h5>
-                    <button id="toggleButton" class="btn btn-{{ 'success' if accept_matches else 'danger' }} btn-lg">
-                        {{ 'ATIVADO' if accept_matches else 'DESATIVADO' }}
-                    </button>
+                <div class="d-flex justify-content-around align-items-center my-5">
+                    <div class="d-flex align-items-center">
+                        <h5 class="mb-0 me-3">Aceitar Partidas:</h5>
+                        <button id="toggleButton" class="btn btn-{{ 'success' if accept_matches else 'danger' }} btn-lg">
+                            {{ 'ATIVADO' if accept_matches else 'DESATIVADO' }}
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <h5 class="mb-0 me-3">Pausar Verificação:</h5>
+                        <button id="pauseToggleButton" class="btn btn-secondary btn-lg">
+                            CARREGANDO...
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -134,70 +139,99 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS (opcional) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // --- VARIÁVEIS GLOBAIS ---
         const toggleButton = document.getElementById("toggleButton");
+        const pauseToggleButton = document.getElementById("pauseToggleButton");
+
         let acceptMatches = {{ accept_matches | tojson }};
+        let isGameflowPaused = false; // Default state
+
         const champions = {{ champions | tojson }};
         let selectedBanChampions = {{ selected_ban_champions | tojson }};
-        // if selectedBanChampions has items, capitalize (first letter)
-        
         for (let i = 0; i < selectedBanChampions.length; i++) {
             selectedBanChampions[i] = selectedBanChampions[i].charAt(0).toUpperCase() + selectedBanChampions[i].slice(1);
         }
 
         let selectedPickChampions = {{ selected_pick_champions | tojson }};
-
-        // if selectedPickChampions has items, capitalize (first letter)
-
         for (let i = 0; i < selectedPickChampions.length; i++) {
             selectedPickChampions[i] = selectedPickChampions[i].charAt(0).toUpperCase() + selectedPickChampions[i].slice(1);
         }
 
 
-        // Define o texto e a classe do botão com base no estado atual
+        // --- BOTÃO DE ACEITAR PARTIDAS ---
         function updateButton() {
             toggleButton.textContent = acceptMatches ? "ATIVADO" : "DESATIVADO";
             toggleButton.className = `btn btn-${acceptMatches ? 'success' : 'danger'} btn-lg`;
         }
 
-        // Evento de clique para alternar o estado
         toggleButton.addEventListener("click", function() {
-            acceptMatches = !acceptMatches; // Alterna o valor booleano
-
-            // Envia a nova configuração para o servidor
+            acceptMatches = !acceptMatches;
             fetch("/actions", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: new URLSearchParams({
-                    accept_matches: acceptMatches
-                })
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ accept_matches: acceptMatches })
             })
-            .then(() => {
-                updateButton(); // Atualiza o botão após a resposta do servidor
-            })
+            .then(() => updateButton())
             .catch(error => console.error("Error:", error));
         });
 
-        // Mostra o próximo estado ao passar o mouse
         toggleButton.addEventListener("mouseover", function() {
             toggleButton.textContent = acceptMatches ? "DESATIVADO" : "ATIVADO";
             toggleButton.className = `btn btn-${acceptMatches ? 'danger' : 'success'} btn-lg`;
         });
 
-        // Restaura o texto original ao sair do hover
         toggleButton.addEventListener("mouseout", function() {
-            updateButton(); // Restaura o texto e classe originais
+            updateButton();
         });
 
-        // Atualiza o botão ao carregar a página
-        updateButton();
+        updateButton(); // Atualiza o botão ao carregar a página
+
+        
+        // --- BOTÃO DE PAUSAR VERIFICAÇÃO ---
+        function updatePauseButton() {
+            pauseToggleButton.textContent = isGameflowPaused ? "PAUSADO" : "ATIVO";
+            pauseToggleButton.className = `btn btn-${isGameflowPaused ? 'danger' : 'success'} btn-lg`;
+        }
+        
+        // Busca o estado inicial quando a página carrega
+        document.addEventListener("DOMContentLoaded", function() {
+            fetch("/actions/get_pause_gameflow_check")
+                .then(response => response.json())
+                .then(data => {
+                    isGameflowPaused = data.paused;
+                    updatePauseButton();
+                })
+                .catch(error => {
+                    console.error("Error fetching pause state:", error);
+                    pauseToggleButton.textContent = "ERRO";
+                    pauseToggleButton.className = "btn btn-warning btn-lg";
+                });
+        });
+
+        pauseToggleButton.addEventListener("click", function() {
+            fetch("/actions/toggle_pause_gameflow_check", { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                isGameflowPaused = data.paused; // Atualiza o estado com a resposta do servidor
+                updatePauseButton();
+            })
+            .catch(error => console.error("Error toggling pause state:", error));
+        });
+
+        pauseToggleButton.addEventListener("mouseover", function() {
+            pauseToggleButton.textContent = isGameflowPaused ? "ATIVO" : "PAUSADO";
+            pauseToggleButton.className = `btn btn-${isGameflowPaused ? 'success' : 'danger'} btn-lg`;
+        });
+
+        pauseToggleButton.addEventListener("mouseout", function() {
+            updatePauseButton();
+        });
 
 
+        // --- LÓGICA DE SELEÇÃO DE CAMPEÕES ---
         function loadChampions() {
             const version = "14.20.1";
             const banChampionGrid = document.getElementById("banChampionGrid");
@@ -229,7 +263,6 @@
             numberOverlay.className = "champion-number";
             numberOverlay.id = `${type}-${key}-number`; // ID único para cada número
             
-            // Add champion name element
             const nameElement = document.createElement("div");
             nameElement.className = "champion-name";
             nameElement.textContent = name;
@@ -264,9 +297,7 @@
         function notifyBackend(championKey, type, isSelecting) {
             fetch(`/actions/select_champion`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ champion: championKey, type: type, selecting: isSelecting })
             })
             .then(response => response.json())
@@ -335,9 +366,10 @@
 
         loadChampions();
 
-
+        
+        // --- VERIFICAÇÃO DE CONEXÃO COM O SERVIDOR ---
         let intervalId;
-        let retryInterval = 3000; // Inicialmente, 3 segundos de intervalo para checar o backend
+        let retryInterval = 3000;
         let isConnectionLostNotificationShowing = false;
 
         function checkServerRestart() {
@@ -365,7 +397,6 @@
             if (isConnectionLostNotificationShowing) return;  
             isConnectionLostNotificationShowing = true;
             document.getElementById("connection-alert").style.display = "block";
-            // document.getElementById("connection-alert").style.display = "none";
         }
 
         window.onload = function() {
